@@ -17,22 +17,13 @@ import scala.util.{Failure, Success}
   * Created by frank on 24/07/16.
   */
 object ConfessionClock extends App {
-  val notifiers = List[Notifiable](MacDesktopNotifier, PrintlnNotifier)
   val task = new TimerTask {
     override def run(): Unit = {
       val search: Future[List[Status]] = Future {
         TwitterSearcher.search(new ConfessionQuery)
       }
       search onComplete {
-        case Success(stati) => {
-          stati.foreach((status: Status) => {
-            notifiers.foreach((notifier: Notifiable) => {
-              Future {
-                notifier(status.getText)
-              }
-            })
-          })
-        }
+        case Success(stati) => NotifyAll(stati)
         case _ =>
       }
     }
@@ -65,6 +56,32 @@ object ConfessionClock extends App {
     }
   }
 
+  class ConfessionQuery {
+    val now = DateTime.now()
+    val time = now.toString("h:mm")
+    val start = now.minusDays(7).toString("yyyy-MM-dd")
+    val end = now.toString("yyyy-MM-dd")
+
+    override def toString(): String = {
+      s"""and "it's $time am" since:$start until:$end"""
+    }
+  }
+  
+  object NotifyAll {
+    val notifiers = List[Notifiable](MacDesktopNotifier, PrintlnNotifier)
+
+    def apply(stati: List[Status]) {
+      stati.foreach((status: Status) => {
+        notifiers.foreach((notifier: Notifiable) => {
+          Future {
+            notifier(status.getText)
+          }
+        })
+      })
+
+    }
+  }
+
   trait Notifiable {
     def apply(text: String)
   }
@@ -83,16 +100,4 @@ object ConfessionClock extends App {
       println(text);
     }
   }
-
-  class ConfessionQuery {
-    val now = DateTime.now()
-    val time = now.toString("h:mm")
-    val start = now.minusDays(7).toString("yyyy-MM-dd")
-    val end = now.toString("yyyy-MM-dd")
-
-    override def toString(): String = {
-      s"""and "it's $time am" since:$start until:$end"""
-    }
-  }
-
 }
