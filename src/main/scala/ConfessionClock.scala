@@ -9,22 +9,43 @@ import scala.collection.JavaConversions._
 import com.github.nscala_time.time.Imports._
 import org.yaml.snakeyaml.Yaml
 
+import scala.concurrent.{ExecutionContext, Future}
+import ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
+
 /**
   * Created by frank on 24/07/16.
   */
 object ConfessionClock extends App {
-  implicit def functionToTimerTask(f: () => Unit): TimerTask = {
-    new TimerTask {
-      def run() = f()
+  val notifiers = List[Notifiable](MacDesktopNotifier, PrintlnNotifier)
+  val task = new TimerTask {
+    override def run(): Unit = {
+      val search: Future[List[Status]] = Future {
+        TwitterSearcher.search(new ConfessionQuery)
+      }
+      search onComplete {
+        case Success(stati) => {
+          stati.foreach((status: Status) => {
+            notifiers.foreach((notifier: Notifiable) => {
+              Future {
+                notifier(status.getText)
+              }
+            })
+          })
+        }
+        case _ =>
+      }
     }
   }
+  new Timer().schedule(task, 60)
+
 
   implicit def anyToString(a: Any): String = {
     a.toString
   }
 
   class Timer extends util.Timer {
-    def schedule(task: TimerTask, interval: Int): Unit = {
+    def schedule(task: TimerTask, interval: Int) = {
       super.schedule(task, 0L, interval * 1000.toLong)
     }
   }
@@ -39,7 +60,7 @@ object ConfessionClock extends App {
       .build()
     val twitter = new TwitterFactory(config).getInstance
 
-    def search(implicit queryString: String): List[Status] = {
+    def search(queryString: String): List[Status] = {
       twitter.search(new Query(queryString)).getTweets.toList
     }
   }
@@ -66,7 +87,7 @@ object ConfessionClock extends App {
   class ConfessionQuery {
     val now = DateTime.now()
     val time = now.toString("h:mm")
-    val start = now.minusDays(5).toString("yyyy-MM-dd")
+    val start = now.minusDays(7).toString("yyyy-MM-dd")
     val end = now.toString("yyyy-MM-dd")
 
     override def toString(): String = {
@@ -74,16 +95,4 @@ object ConfessionClock extends App {
     }
   }
 
-  override def main(args: Array[String]) = {
-    val notifiers = List[Notifiable](MacDesktopNotifier, PrintlnNotifier)
-    val task = () => {
-      TwitterSearcher.search(new ConfessionQuery).foreach((status: Status) => {
-        notifiers.foreach {
-          _.apply(status.getText)
-        }
-      })
-    }
-
-    new Timer().schedule(task, 60)
-  }
 }
