@@ -12,6 +12,7 @@ import org.yaml.snakeyaml.Yaml
 import scala.concurrent.{ExecutionContext, Future}
 import ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
+import scala.swing._
 
 /**
   * Created by frank on 24/07/16.
@@ -28,7 +29,27 @@ object ConfessionClock extends App {
       }
     }
   }
-  new Timer().schedule(task, 60)
+  new Timer().schedule(task, 10)
+
+
+  object UI extends MainFrame {
+    val panel = new BoxPanel(Orientation.Vertical) {
+      border = Swing.EmptyBorder(10, 10, 10, 10)
+    }
+    def addTweet(text: String) = {
+      val label = new Label(text)
+      println(label)
+
+      panel.contents += label
+      panel.repaint
+    }
+
+    title = "Confession Clock"
+    visible = true
+    preferredSize = new Dimension(500, 500)
+    contents = panel
+
+  }
 
 
   implicit def anyToString(a: Any): String = {
@@ -66,9 +87,9 @@ object ConfessionClock extends App {
       s"""and "it's $time am" since:$start until:$end"""
     }
   }
-  
+
   object NotifyAll {
-    val notifiers = List[Notifiable](MacDesktopNotifier, PrintlnNotifier)
+    val notifiers = List[Notifiable](GuiNotifier)
 
     def apply(stati: List[Status]) {
       stati.foreach((status: Status) => {
@@ -86,18 +107,15 @@ object ConfessionClock extends App {
     def apply(text: String)
   }
 
-  object MacDesktopNotifier extends Notifiable {
-    val runtime = Runtime.getRuntime
-
+  object GuiNotifier extends Notifiable {
     def apply(text: String) = {
-      val command = s"""display notification "$text" with title "Confession clock""""
-      runtime.exec(Array("osascript", "-e", command))
+      UI.addTweet(text)
     }
   }
 
   object PrintlnNotifier extends Notifiable {
     def apply(text: String) = {
-      println(text);
+      println(text)
     }
   }
 }
